@@ -1,0 +1,236 @@
+-- The following answers are written in MYSQL, using sql compiler at https://www.mycompiler.io/new/mysql
+
+
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- sample data -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+
+-- Note : Some changes are made to the original sample data to better test the answers.
+
+DROP TABLE IF EXISTS sales;
+
+CREATE TABLE sales
+  (
+     cust_id      INT NOT NULL,
+     order_no     INT NOT NULL,
+     order_date   VARCHAR(20) NOT NULL,
+     device_id    INT NOT NULL,
+     prod_id      INT NOT NULL,
+     sales_amount INT NOT NULL,
+     quantity     INT NOT NULL
+  );
+
+INSERT INTO sales
+            (cust_id,
+             order_no,
+             order_date,
+             device_id,
+             prod_id,
+             sales_amount,
+             quantity)
+VALUES      (3424182,
+             2429,
+             "11/24/2018",
+             2,
+             85,
+             8,
+             1),
+            (3424182,
+             2429,
+             "11/24/2018",
+             2,
+             65,
+             27,
+             3),
+            (3424182,
+             2429,
+             "11/24/2018",
+             2,
+             86,
+             15,
+             3),
+            (5947338,
+             7123,
+             "11/6/2018",
+             6,
+             36,
+             5,
+             1),
+            (5947338,
+             7123,
+             "11/6/2018",
+             6,
+             40,
+             12,
+             4),
+            (5947338,
+             7124,
+             "11/14/2018",
+             6,
+             89,
+             56,
+             7),
+            (5947338,
+             7123,
+             "11/6/2018",
+             6,
+             63,
+             21,
+             3),
+            (1050633,
+             4791,
+             "5/14/2018",
+             7,
+             33,
+             19,
+             1),
+            (6398851,
+             3867,
+             "11/25/2018",
+             1,
+             67,
+             80,
+             5),
+            (6398851,
+             3869,
+             "11/27/2019",
+             1,
+             42,
+             18,
+             6); 
+
+
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- Question  1 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+
+WITH app_orders
+     AS (SELECT Year(Str_to_date(order_date, '%m/%d/%Y')) year,
+                Count(DISTINCT order_no)                  AS APP_orders
+         FROM   sales
+         WHERE  device_id IN ( 1, 2, 3, 4 )
+         GROUP  BY Year(Str_to_date(order_date, '%m/%d/%Y'))),
+     all_orders
+     AS (SELECT Year(Str_to_date(order_date, '%m/%d/%Y')) year,
+                Count(DISTINCT order_no)                  AS Total_orders
+         FROM   sales
+         GROUP  BY Year(Str_to_date(order_date, '%m/%d/%Y')))
+SELECT a.year,
+       a.app_orders,
+       al.total_orders,
+       Round(a.app_orders / al.total_orders, 2) AS pct_APP_orders
+FROM   app_orders a
+       JOIN all_orders al
+         ON a.year = al.year; 
+
+
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- Question  2 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+
+SELECT Month(Str_to_date(order_date, '%m/%d/%Y'))                            AS
+       month,
+       Year(Str_to_date(order_date, '%m/%d/%Y'))                             AS
+       year,
+       Round(( Sum(sales_amount * quantity) / Count(DISTINCT order_no) ), 0) AS
+       AOV,
+       Round(( Sum(sales_amount * quantity) / Count(DISTINCT cust_id) ), 0)  AS
+       SPC
+FROM   sales
+GROUP  BY year,
+          month
+ORDER  BY year,
+          month; 
+
+
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- Question  3 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+
+-- Note : I assumed that sales_amount column contains prices for a single product and order's total sale amount = sales_amount * quantity
+           
+WITH total_orders
+     AS (SELECT cust_id,
+                order_no,
+                Sum(sales_amount * quantity) AS total_order
+         FROM   sales
+         GROUP  BY cust_id,
+                   order_no)
+SELECT s.*,
+       t.total_order,
+       Round(( s.sales_amount * s.quantity / t.total_order ), 2) AS
+       pct_sales_amount
+FROM   sales s
+       JOIN total_orders t
+         ON s.cust_id = t.cust_id
+            AND s.order_no = t.order_no; 
+
+
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- Question  4 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+
+SELECT DISTINCT cust_id
+FROM   sales
+WHERE  Year(Str_to_date(order_date, '%m/%d/%Y')) LIKE '%2018%'
+       AND cust_id NOT IN (SELECT cust_id
+                           FROM   sales
+                           WHERE  Year(Str_to_date(order_date, '%m/%d/%Y')) LIKE
+                                  '%2019%'); 
+
+
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- Question  5 -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+-- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- 
+
+-- Note 1 : The avg difference between first and second order is calculated based on customers who have at least two seperate orders in different days.
+-- Note 2 : The 'deduped' temp table selects only one record when an order has multiple products in it (same order multiple rows). 
+            -- Since there are millions of records, and to be mindful of performance, my approach to delete duplicates based on two columns is adding 
+            -- index numbers and keeping the first index for each order.
+            -- I believe this is faster than the common 'GROUP BY cust_id, order_date HAVING count(*) >1' approach to drop duplicates.
+
+WITH deduped
+     AS (SELECT cust_id,
+                order_date,
+                order_no
+         FROM   (SELECT cust_id,
+                        order_date,
+                        order_no,
+                        Row_number()
+                          OVER(
+                            partition BY cust_id, order_date) AS index_num
+                 FROM   sales) main
+         WHERE  main.index_num = 1),
+     ranked
+     AS (SELECT cust_id,
+                order_date,
+                order_no,
+                Row_number()
+                  OVER(
+                    partition BY cust_id
+                    ORDER BY Str_to_date(order_date, '%m/%d/%Y') ASC) AS
+                order_rank
+         FROM   deduped),
+     first_order
+     AS (SELECT *
+         FROM   ranked
+         WHERE  order_rank = 1),
+     second_order
+     AS (SELECT *
+         FROM   ranked
+         WHERE  order_rank = 2),
+     days_diff_per_customer
+     AS (SELECT first_order.cust_id     AS cust_id,
+                first_order.order_no    AS f_order_no,
+                second_order.order_no   AS s_order_no,
+                first_order.order_date  AS f_order_date,
+                second_order.order_date AS s_order_date, Datediff(Str_to_date(
+        second_order.order_date, '%m/%d/%Y'),
+        Str_to_date(first_order.order_date,
+        '%m/%d/%Y')) AS days_diff
+         FROM   first_order
+                JOIN second_order
+                  ON first_order.cust_id = second_order.cust_id)
+SELECT Round(Avg(days_diff), 0) AS avg_time
+FROM   days_diff_per_customer; 
+
